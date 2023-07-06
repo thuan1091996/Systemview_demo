@@ -178,9 +178,9 @@ int __nrf_slte__get_resp(char* resp, uint16_t maxlength)
         {
             hal__UARTRead(AT_DEFAULT_UART_PORT, &recv_buf[recv_idx], recv_len);
             recv_idx += recv_len;
-            if(strstr(recv_buf, "\r\n") != NULL)
+            if(strstr(rcv_buf, "OK") != NULL)
             {
-                memcpy(resp, recv_buf, recv_idx);
+                memcpy(resp, rcv_buf, recv_idx);
                 return recv_idx;
             }
         }
@@ -195,16 +195,12 @@ int __nrf_slte__get_resp(char* resp, uint16_t maxlength)
  */
 int nrf_slte__power_on(void)
 {
-    int ret = FAILURE;
     char resp[AT_BUFFER_SIZE] = {0};
     if (__nrf_slte__send_command("AT+CFUN=21\r\n") != SUCCESS)
         return FAILURE; // Failed to send command
     if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
-        return FAILURE; // Failed to receive resp (no "")
-
-        if(strstr(resp, "OK") != NULL)
-            ret = SUCCESS;
-    return ret;
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    return SUCCESS;
 } 
 
 /*
@@ -213,9 +209,80 @@ int nrf_slte__power_on(void)
  */
 int nrf_slte__power_off(void)
 {
-    int ret = FAILURE;
     char resp[AT_BUFFER_SIZE] = {0};
     if (__nrf_slte__send_command("AT+CFUN=0\r\n") != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    return SUCCESS;
+}
+
+/**
+ * @brief Get the rssi from cesq response string
+ * @param cesq_response 
+ * @return RSSI in dBm
+ * @note: More on: https://devzone.nordicsemi.com/f/nordic-q-a/71958/how-know-rssi
+ */
+int get_rssi_from_cesq_response(char* cesq_response) 
+{
+    int rsrq, rsrp, rssi;
+    int status = sscanf(cesq_response, "+CESQ: %*d,%*d,%*d,%*d,%d,%d", &rsrq, &rsrp);
+    if(status != 2)
+        return FAILURE;
+    rssi = (double)(10 * log10(6) + (rsrp - 140) - (rsrq - 19.5));
+    return rssi;
+}
+
+
+/*
+ * Implements [AT+CESQ] (Signal Quality Report), Waits for Response, Returns RSSI value in dBm.
+ * https://infocenter.nordicsemi.com/topic/ref_at_commands/REF/at_commands/mob_termination_ctrl_status/cesq_set.html 
+ * Example:
+ * "AT+CESQ"
+ * "+CESQ: 99,99,255,255,31,62 <CR><LF> OK"
+ */
+int nrf_slte__get_rssi(void)
+{
+    int ret = FAILURE;
+    char resp[AT_BUFFER_SIZE] = {0};
+    if (__nrf_slte__send_command("AT+CESQ\r\n") != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "\r\n received within timeout")
+
+    char* cesq_response_str = strstr(resp, "+CESQ: ");
+    if(cesq_response_str == NULL)
+        return FAILURE; // Invalid response
+
+    //Get first token to extract RSSI
+    cesq_response_str = strtok(cesq_response_str, "\n");
+    if(cesq_response_str == NULL)
+        return FAILURE; // Invalid response
+    
+    int rssi = get_rssi_from_cesq_response(cesq_response_str);
+
+    return rssi;
+}
+
+/*
+ * Implements [AT+COPS?] 
+ * returns 1 if connected, 0 if not connected, -1 if error 
+ * //https://infocenter.nordicsemi.com/topic/ref_at_commands/REF/at_commands/nw_service/cops_read.html
+ */
+int nrf_slte__connected(void)
+{
+
+}
+
+/*
+ * Implements [AT#CARRIER="time","read"] to get time returns seconds since UTC time 0. 
+ * https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/applications/serial_lte_modem/doc/CARRIER_AT_commands.html#lwm2m-carrier-library-xcarrier
+ */
+long nrf_slte__get_time(void)
+{
+    int ret = FAILURE;
+    char resp[AT_BUFFER_SIZE] = {0};
+    if (__nrf_slte__send_command("AT#XCARRIER="time"") != SUCCESS)
         return FAILURE; // Failed to send command
     if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
         return FAILURE; // Failed to receive resp (no "")
@@ -226,11 +293,15 @@ int nrf_slte__power_off(void)
 }
 
 /*
- * Implements [AT+COPS?] 
- * returns 1 if connected, 0 if not connected, -1 if error 
- * //https://infocenter.nordicsemi.com/topic/ref_at_commands/REF/at_commands/nw_service/cops_read.html
+ * Implements [AT+CFUN=4] (turns off modem), Waits for OK. 
+ * Implements [AT%CMNG=3,12354,0] Clears certificate #12354 if it exists. Returns 0 if ok. Returns -1 if error.   
  */
-int nrf_slte__connected(void);
+int __nrf_slte__clearCert()
+{
+    if ( nrf_slte__power_off() != SUCCESS)
+        return FAILURE; // Failed to power off
+    __nrf_slte__send_command("AT%CMNG=3,12354,0\r\n");
+}
 
 
 
