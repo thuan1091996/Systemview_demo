@@ -163,15 +163,15 @@ int __nrf_slte__get_resp(char* resp, uint16_t maxlength)
 {
     param_check(resp != NULL);
     uint16_t recv_idx = 0;
-    uint8_t recv_buf[maxlength]; // Temp buffer to receive data from UART
-    memset(recv_buf, 0, sizeof(recv_buf));
+    uint8_t rcv_buf[maxlength]; // Temp buffer to receive data from UART
+    memset(rcv_buf, 0, sizeof(rcv_buf));
 	uint64_t max_recv_timeout = PORT_GET_SYSTIME_MS() + AT_DEFAULT_TIMEOUT_MS;
     // Wait until maximum AT_DEFAULT_TIMEOUT_MS to receive "\r\n"
     while (PORT_GET_SYSTIME_MS() < max_recv_timeout)
     {
         uint16_t recv_len = hal__UARTAvailable(AT_DEFAULT_UART_PORT);
 
-        if(recv_idx + recv_len > sizeof(recv_buf) )
+        if(recv_idx + recv_len > sizeof(rcv_buf) )
             break; // Overflow
             
         if(recv_len > 0)
@@ -248,7 +248,7 @@ int nrf_slte__get_rssi(void)
     if (__nrf_slte__send_command("AT+CESQ\r\n") != SUCCESS)
         return FAILURE; // Failed to send command
     if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
-        return FAILURE; // Failed to receive resp (no "\r\n received within timeout")
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
 
     char* cesq_response_str = strstr(resp, "+CESQ: ");
     if(cesq_response_str == NULL)
@@ -265,6 +265,7 @@ int nrf_slte__get_rssi(void)
 }
 
 /*
+ * TODO: Implement
  * Implements [AT+COPS?] 
  * returns 1 if connected, 0 if not connected, -1 if error 
  * //https://infocenter.nordicsemi.com/topic/ref_at_commands/REF/at_commands/nw_service/cops_read.html
@@ -275,6 +276,7 @@ int nrf_slte__connected(void)
 }
 
 /*
+ * TODO: Implement
  * Implements [AT#CARRIER="time","read"] to get time returns seconds since UTC time 0. 
  * https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/applications/serial_lte_modem/doc/CARRIER_AT_commands.html#lwm2m-carrier-library-xcarrier
  */
@@ -282,13 +284,16 @@ long nrf_slte__get_time(void)
 {
     int ret = FAILURE;
     char resp[AT_BUFFER_SIZE] = {0};
-    if (__nrf_slte__send_command("AT#XCARRIER="time"") != SUCCESS)
+    if (__nrf_slte__send_command("AT#XCARRIER=\"time\"") != SUCCESS)
         return FAILURE; // Failed to send command
     if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
-        return FAILURE; // Failed to receive resp (no "")
-
-        if(strstr(resp, "OK") != NULL)
-            ret = SUCCESS;
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    // Parse response given example: #XCARRIER: UTC_TIME: 2022-12-30T14:56:46Z, UTC_OFFSET: 60, TIMEZONE: Europe/Paris
+    char* utc_time_str = strstr(resp, "UTC_TIME: ");
+    if(utc_time_str == NULL)
+        return FAILURE; // Invalid response
+    
+    
     return ret;
 }
 
@@ -298,22 +303,124 @@ long nrf_slte__get_time(void)
  */
 int __nrf_slte__clearCert()
 {
+    char resp[AT_BUFFER_SIZE] = {0};
     if ( nrf_slte__power_off() != SUCCESS)
         return FAILURE; // Failed to power off
-    __nrf_slte__send_command("AT%CMNG=3,12354,0\r\n");
+    if (__nrf_slte__send_command("AT%CMNG=3,12354,0\r\n") != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    return SUCCESS;
 }
 
-
-
-
-int hal__ATWaitReponse(uint8_t uartNum, uint8_t* data, uint32_t timeout)
+/*
+ * calls "__nrf_slte__clearCert()" to clear the certificate, if it exists. 
+ * Then, Implements [AT%CMNG=0,12354,0,\"<ca>\"] to set CA certificate,
+ *  where <ca> represents the contents of ca, with the null terminator removed.
+ *  Then, enables the modem using "nrf_slte__power_on()" Returns 0 if ok. Returns -1 if error. 
+ * https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/applications/serial_lte_modem/doc/Generic_AT_commands.html#native-tls-cmng-xcmng
+ */
+int nrf_slte__setCA(char* ca)
 {
-    param_check( (1 <= uartNum) && (uartNum <= 2) );
-    while(!timeout)
+    char resp[AT_BUFFER_SIZE] = {0};
+    if (__nrf_slte__clearCert() != SUCCESS)
+        return FAILURE; // Failed to clear certificate //TODO: What if cert not exist
+    if (__nrf_slte__send_command("AT%CMNG=0,12354,0,"%s"\r\n", ca) != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    if ( nrf_slte__power_on() != SUCCESS)
+        return FAILURE; // Failed to power on
+    return SUCCESS;
+}
+
+void parse_url(const char* url, char* host, char* path)
+{
+    /* Extract hostname and path from URL */
+    const char* slash = strchr(url, '/');
+    if (slash) 
+    { 
+        // '/' found, Get the length of the host by subtracting pointers
+        uint8_t host_len = slash - url;
+        memcpy(host, url, host_len);
+        host[host_len] = '\0';
+        strcpy(path, slash);
+    } 
+    else 
     {
-        int len = hal__UARTAvailable(uartNum);
-        hal__UARTRead(uartNum, data, len);
+        // No '/' found, assume that the entire URL is the host
+        strcpy(host, url);
+        path[0] = '/';
+        path[1] = '\0';
     }
+}
+
+int http_get_content_length(const char* resp)
+{
+    char* content_length_str = strstr(resp, "Content-Length: ");
+    if(content_length_str == NULL)
+        return FAILURE; // Invalid response
+    scanf(content_length_str, "Content-Length: %d", &content_length);
+    return content_length;
+}
+
+/*
+ * //if url = "google.com/myurl" Implements [AT#XHTTPCCON=1,\"google.com\",443,12354], waits for a valid reply
+ * then implements [AT#XHTTPCREQ=\"GET\",\"/myurl\"]. 
+ * Returns 0 if ok. Returns -1 if error. 
+ * Returns response in response char array. 
+ * https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/applications/serial_lte_modem/doc/HTTPC_AT_commands.html
+ */
+int nrf_slte__httpsGET(char* url, char* response, uint16_t maxlength)
+{
+    int status;
+    char resp[AT_BUFFER_SIZE] = {0};
+    char host[256];
+    char path[256];
+
+    /* Extract hostname and path from URL */
+    parse_url(url, host, path);
+    printf("Host: %s\n", host);
+    printf("Path: %s\n", path);
+
+    // Connect to HTTPS server using IPv4
+    if (__nrf_slte__send_command("AT#XHTTPCCON=1,\"%s\",443,12354\r\n", host) != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    resp = strstr(resp, "XHTTPCCON");
+    if(resp == NULL)
+        return FAILURE; // Invalid response
+    scanf(resp, "XHTTPCCON: %d", &status);
+    if(status != 1)
+        return FAILURE; // Failed to connect to server
+
+    // Connected to server, send GET request
+    memset(resp, 0, strlen(resp));
+    if (__nrf_slte__send_command("AT#XHTTPCREQ=\"GET\",\"%s\"\r\n", path) != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    
+
+    // Input
+    // HTTP header
+    //#XHTTPCRSP:337,1
+    // HTTP body
+    //#XHTTPCRSP:337,1
+
+    // Process
+    int content_length = http_get_content_length(resp);
+    if(content_length <= 0 || content_length > maxlength)
+        return FAILURE; // Invalid response
+    
+    // Locate HTTP body
+    char* body = strstr(resp, "#XHTTPCRSP");
+    if(body == NULL)
+        return FAILURE; // Invalid response
+    
+    
+
 }
 
 
