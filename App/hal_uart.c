@@ -234,6 +234,7 @@ int get_rssi_from_cesq_response(char* cesq_response)
 }
 
 
+
 /*
  * Implements [AT+CESQ] (Signal Quality Report), Waits for Response, Returns RSSI value in dBm.
  * https://infocenter.nordicsemi.com/topic/ref_at_commands/REF/at_commands/mob_termination_ctrl_status/cesq_set.html 
@@ -267,12 +268,86 @@ int nrf_slte__get_rssi(void)
 /*
  * TODO: Implement
  * Implements [AT+COPS?] 
+ * Expected Response: +COPS: (<status>,"long","short","numeric",<AcT>) // AcT - Access Technology
  * returns 1 if connected, 0 if not connected, -1 if error 
  * //https://infocenter.nordicsemi.com/topic/ref_at_commands/REF/at_commands/nw_service/cops_read.html
  */
 int nrf_slte__connected(void)
 {
+    char resp[AT_BUFFER_SIZE] = {0};
+    if (__nrf_slte__send_command("AT+COPS?\r\n") != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) == FAILURE)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    
+    char* cops_response_str = strstr(resp, "+COPS: ");
+    if(cops_response_str == NULL)
+        return FAILURE; // Invalid response
 
+    // Retrieve network status
+    char* network_status = sscanf(cops_response_str, "+COPS: %d", &network_status);
+    if(network_status == NULL)
+        return FAILURE; // Invalid response
+    
+    if(network_status == 0)
+        return 0; // Not connected
+    else if(network_status == 2)
+        return 1; // Connected
+    else
+        return FAILURE; // Invalid response
+}
+/*
+ * Send +CPIN=? 
+ * returns 1 if SIM is present (Resp == "READY"), 0 if not present (???), -1 if error
+ */
+int nrf_slte__get_SimPresent(void)
+{
+    char resp[AT_BUFFER_SIZE] = {0};
+    if (__nrf_slte__send_command("AT+CPIN=?\r\n") != SUCCESS)
+        return FAILURE; // Failed to send command
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+        return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+    if(strstr(resp, "READY") != NULL)
+        return 1;
+    else
+        return 0;
+}
+
+
+
+/**
+ * @brief Get the unix timestamp from datetime object   
+ * 
+ * @param datetime 
+ * @return FAILURE if error, else unix timestamp in seconds
+ */
+long get_unix_timestamp_from_datetime(const char* datetime)
+{
+    int year, month, day, hour, minute, second;
+    
+    if(sscanf(datetime, "UTC_TIME: %d-%d-%dT%d:%d:%dZ", &year, &month, &day, &hour, &minute, &second) != 6)
+    {
+        printf("Invalid datetime format\n");
+        return FAILURE;
+    }
+
+    struct tm current_time = {0};
+    current_time.tm_year = year - 1900; // Year since 1900
+    current_time.tm_mon = month - 1; // Months since January [0-11]
+    current_time.tm_mday = day; 
+    current_time.tm_hour = hour;
+    current_time.tm_min = minute;
+    current_time.tm_sec = second;
+
+    time_t t = mktime(&current_time);
+
+    // Check if time conversion is successful
+    if(t == -1){
+        printf("Error: unable to make time using mktime\n");
+        return FAILURE;
+    }
+
+    return (long)t;
 }
 
 /*
@@ -286,15 +361,22 @@ long nrf_slte__get_time(void)
     char resp[AT_BUFFER_SIZE] = {0};
     if (__nrf_slte__send_command("AT#XCARRIER=\"time\"") != SUCCESS)
         return FAILURE; // Failed to send command
-    if (__nrf_slte__get_resp(resp, sizeof(resp)) != SUCCESS)
+    if (__nrf_slte__get_resp(resp, sizeof(resp)) == FAILURE)
         return FAILURE; // Failed to receive resp (no "OK" received within timeout")
+
     // Parse response given example: #XCARRIER: UTC_TIME: 2022-12-30T14:56:46Z, UTC_OFFSET: 60, TIMEZONE: Europe/Paris
     char* utc_time_str = strstr(resp, "UTC_TIME: ");
     if(utc_time_str == NULL)
         return FAILURE; // Invalid response
-    
-    
-    return ret;
+    char* utc_date_time_str = sscanf(utc_time_str, "UTC_TIME: %s", utc_time_str);
+    if(utc_date_time_str == NULL)
+        return FAILURE; // Invalid response
+
+    long unix_timestamp = get_unix_timestamp_from_datetime(utc_date_time_str);
+    if(unix_timestamp == FAILURE)
+        return FAILURE; // Invalid response
+
+    return unix_timestamp;
 }
 
 /*
