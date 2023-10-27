@@ -54,21 +54,53 @@
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
+int example_divide_by_zero(int denominator) {
+  int rv = 5;
+  if (denominator == 0) {
+    rv = 1 / denominator;
+  }
+  return rv;
+}
 
+__attribute__ ((naked))  void HardFault_Handler(void) {
+    // get current Stack Pointer
+    __asm volatile("MRS R0, MSP");
+    __asm volatile("B HardFault_Handler_main");
+}
+
+void DumpExceptionRegister(uint32_t* pMSP)
+{
+  printf(" MSP = %p\n", pMSP);
+  printf("  R0 = 0x%lx\n", pMSP[0]);  // May have argument of function
+  printf("  R1 = 0x%lx\n", pMSP[1]);  // May have argument of function
+  printf("  R2 = 0x%lx\n", pMSP[2]);  // May have argument of function
+  printf("  R3 = 0x%lx\n", pMSP[3]);  // May have argument of function
+  printf(" R12 = 0x%lx\n", pMSP[4]);  // IP holds an intermediate value of a calculation
+  printf("  LR = 0x%lx\n", pMSP[5]);  // Address of the next instruction before the exception
+  printf("  PC = 0x%lx\n", pMSP[6]);  // CPU was executing the instruction at PC
+  printf("xPSR = 0x%lx\n", pMSP[7]);  // Status of system before execution at PC completes
+}
+
+void HardFault_Handler_main(uint32_t* pMSP) {
+  printf("Exception: Usage Fault\n");
+  DumpExceptionRegister(pMSP);
+
+  uint32_t* pUFSR = (uint32_t*)0xE000ED2A;
+  printf("UFSR = 0x%lx\n", *pUFSR & 0xFFFF);
+
+  while(1);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void Config_Systemview(void)
+void test_me(void)
 {
-	CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-	 /* Number of clock cycles that happened after CPU reset */
-	 DWT->CYCCNT = 0;
-	/*enable cycle counting feature*/
-	DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-	SEGGER_SYSVIEW_Conf();
-
+//	uint8_t* p_test_u8 = (uint8_t*)&temp_buff[100];
+//	for(uint8_t idx=0; idx<10; idx++)
+//		(uint8_t*)(p_test_u8[idx]) = idx;
 }
+uint32_t guess_me;
 /* USER CODE END 0 */
 
 /**
