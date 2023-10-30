@@ -18,7 +18,6 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
-#include "i2s.h"
 
 /* USER CODE BEGIN 0 */
 
