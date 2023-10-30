@@ -26,7 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "../app/hal.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,6 +46,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+	volatile int adc_voltage[10] = {0};
 
 /* USER CODE END PV */
 
@@ -134,6 +135,7 @@ int main(void)
   MX_USB_OTG_FS_HCD_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+  __initADC1();
 
   /* USER CODE END 2 */
 
@@ -149,6 +151,17 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    adc_voltage[0] = hal__ADCReadMV(0);
+    adc_voltage[1] = hal__ADCReadMV(1);
+    adc_voltage[2] = hal__ADCReadMV(2);
+    adc_voltage[3] = hal__ADCReadMV(3);
+    adc_voltage[4] = hal__ADCReadMV(4);
+    adc_voltage[5] = hal__ADCReadMV(5);
+    adc_voltage[6] = hal__ADCReadMV(6);
+    adc_voltage[7] = hal__ADCReadMV(7);
+    adc_voltage[8] = hal__ADCReadMV(8);
+    adc_voltage[9] = hal__ADCReadMV(9);
+    memset(adc_voltage, 0, sizeof(adc_voltage));
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
