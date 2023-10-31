@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "../app/hal.h"
+#include "../app/n25q128a.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
