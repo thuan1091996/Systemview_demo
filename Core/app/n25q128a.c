@@ -77,7 +77,8 @@
 #define SPI_MAX_TIMEOUT     3000
 
 int m_SPI__writebyte(int data) {
-    if (HAL_SPI_Transmit(&hspi1, (uint8_t *)&data, 1, SPI_MAX_TIMEOUT) != HAL_OK) {
+	uint8_t transmit_byte = data;
+    if (HAL_SPI_Transmit(&hspi1, (uint8_t *)&transmit_byte, 1, SPI_MAX_TIMEOUT) != HAL_OK) {
         return -1;
     }
     return 0;
