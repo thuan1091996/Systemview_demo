@@ -32,8 +32,8 @@
 #define testprintf(...)         (void)(0)
 #define dbgprintf(...)          (void)(0)
 
-#define SlaveSelect()           HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_RESET)
-#define SlaveDeSelect()         HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET)
+#define SlaveSelect()           HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_RESET)
+#define SlaveDeSelect()         HAL_GPIO_WritePin(SPI2_NSS_GPIO_Port, SPI2_NSS_Pin, GPIO_PIN_SET)
 /******************************************************************************
 * Module Typedefs
 *******************************************************************************/

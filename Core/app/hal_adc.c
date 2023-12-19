@@ -39,7 +39,7 @@ const tADCDef ADC_PIN[] = {
         { .Channel = ADC_CHANNEL_9, .Gpio = {.Port = GPIOB, .Pin = GPIO_PIN_1}  /*9*/},
 };
 
-extern ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc1;
 /*------------------------------------------------------------------------------*/
 /*					  	  Function Private Implement		    			    */
 /*------------------------------------------------------------------------------*/
@@ -121,7 +121,7 @@ int __initADC1()
 
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /* ADC1 GPIO Configuration * \
+    /* ADC1 GPIO Configuration *\
     PA0     ------> ADC1_IN0
     PA1     ------> ADC1_IN1
     PA2     ------> ADC1_IN2
@@ -147,7 +147,7 @@ int __initADC1()
 #if 0
     RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-    PeriphClkInitStruct.AdcClockSelection = RCC_ADCPCLK2_DIV2;
+    PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
 #endif /* End of 0 */
     __HAL_RCC_ADC1_CLK_ENABLE();
 
@@ -155,13 +155,23 @@ int __initADC1()
     hadc1.Instance = ADC1;
     hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
     hadc1.Init.Resolution = ADC_DEFAULT_RESOLUTION;
-    hadc1.Init.ScanConvMode = DISABLE;
+	hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+    hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+    hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_39CYCLES_5;
+    hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_39CYCLES_5;
+    hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_LOW;
+    hadc1.Init.NbrOfConversion = 1;
+    hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+    hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+    hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+    hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
     hadc1.Init.ContinuousConvMode = DISABLE;
     hadc1.Init.DiscontinuousConvMode = DISABLE;
     hadc1.Init.DMAContinuousRequests = DISABLE;
-    hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-    hadc1.Init.NbrOfConversion = 1;
-    hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+	hadc1.Init.LowPowerAutoWait = DISABLE;
+	hadc1.Init.LowPowerAutoPowerOff = DISABLE;
+    hadc1.Init.OversamplingMode = DISABLE;
+
     if (HAL_ADC_Init(&hadc1) != HAL_OK)
     {
         return FAILURE;
@@ -185,8 +195,6 @@ int hal__ADCRead(uint8_t pin)
     	if ( SUCCESS != __initADC1())
     		return FAILURE;
     }
-
-    // Calibration
 
     uint16_t adc_raw;
     if( SUCCESS != __ADC1_read(ADC_PIN[pin].Channel, &adc_raw))

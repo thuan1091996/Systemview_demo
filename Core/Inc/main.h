@@ -75,8 +75,10 @@ void Error_Handler(void);
 #define BOOT1_GPIO_Port GPIOB
 #define CLK_IN_Pin GPIO_PIN_10
 #define CLK_IN_GPIO_Port GPIOB
-#define SPI2_NSS_Pin GPIO_PIN_14
-#define SPI2_NSS_GPIO_Port GPIOB
+#define FLASH_RESET_PIN_Pin GPIO_PIN_10
+#define FLASH_RESET_PIN_GPIO_Port GPIOD
+#define FLASH_WP_PIN_Pin GPIO_PIN_11
+#define FLASH_WP_PIN_GPIO_Port GPIOD
 #define LD4_Pin GPIO_PIN_12
 #define LD4_GPIO_Port GPIOD
 #define LD3_Pin GPIO_PIN_13
@@ -99,8 +101,8 @@ void Error_Handler(void);
 #define SWDIO_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
-#define SPI1_NSS_Pin GPIO_PIN_15
-#define SPI1_NSS_GPIO_Port GPIOA
+#define SPI2_NSS_Pin GPIO_PIN_15
+#define SPI2_NSS_GPIO_Port GPIOA
 #define I2S3_SCK_Pin GPIO_PIN_10
 #define I2S3_SCK_GPIO_Port GPIOC
 #define I2S3_SD_Pin GPIO_PIN_12
@@ -116,6 +118,14 @@ void Error_Handler(void);
 #define MEMS_INT2_Pin GPIO_PIN_1
 #define MEMS_INT2_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
+#define FLASH_RESET_PORT		GPIOD
+#define FLASH_RESET_PIN		GPIO_PIN_10
+#define FLASH_WP_PORT		GPIOD
+#define FLASH_WP_PIN		GPIO_PIN_11
+void DWT_Delay_us(volatile uint32_t microseconds);
+#define SPI2_NSS_Pin_NUMBER 15
+#define FLASH_RESET_PIN_NUMBER 10
+#define FLASH_WP_PIN_NUMBER 11
 
 /* USER CODE END Private defines */
 
